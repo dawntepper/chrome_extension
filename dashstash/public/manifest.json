@@ -1,0 +1,22 @@
+{
+    "manifest_version": 2,
+    "name": "DashStash Extension",
+    "version": "1.0",
+    "description": "Save articles to DashStash",
+    "permissions": [
+      "activeTab",
+      "storage",
+      "https://your-api-endpoint.com/"
+    ],
+    "browser_action": {
+      "default_popup": "index.html",
+      "default_icon": "icon.png"
+    },
+    "background": {
+      "scripts": ["background.js"],
+      "persistent": false
+    },
+    "icons": {
+      "48": "icon.png"
+    }
+  }

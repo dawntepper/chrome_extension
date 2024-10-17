@@ -1,0 +1,1 @@
+console.log("Popup HTML loaded"),document.addEventListener("DOMContentLoaded",(o=>{console.log("DOM fully loaded and parsed")})),window.addEventListener("load",(o=>{console.log("All resources finished loading")}));

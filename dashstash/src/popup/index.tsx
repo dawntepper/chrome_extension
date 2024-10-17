@@ -2,7 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom";
 import Popup from "./Popup";
 import { AuthProvider } from "../context/AuthContext";
+import { supabase } from "../supabaseClient";
 import "bootstrap/dist/css/bootstrap.min.css";
+
+console.log("Supabase client in popup:", supabase);
+console.log("Supabase auth:", supabase.auth);
 
 const container = document.getElementById("root");
 
@@ -18,12 +22,13 @@ const renderApp = () => (
   </React.StrictMode>
 );
 
-// Check if the createRoot API is available (React 18+)
-if ("createRoot" in ReactDOM) {
-  // TypeScript doesn't know about createRoot, so we need to use `any` here
-  const root = (ReactDOM as any).createRoot(container);
-  root.render(renderApp());
-} else {
-  // Fallback for React 17 and below
-  ReactDOM.render(renderApp(), container);
+try {
+  if ("createRoot" in ReactDOM) {
+    const root = (ReactDOM as any).createRoot(container);
+    root.render(renderApp());
+  } else {
+    ReactDOM.render(renderApp(), container);
+  }
+} catch (error) {
+  console.error("Error rendering app:", error);
 }

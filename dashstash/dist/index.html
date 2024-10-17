@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>DashStash Extension</title>
     <style>
         body {
@@ -21,9 +21,18 @@
             height: 100%;
         }
     </style>
-    <script src="debug.js"></script>
+    <script>
+        console.log('Popup HTML loaded');
+        window.addEventListener('DOMContentLoaded', (event) => {
+            console.log('DOM fully loaded and parsed');
+        });
+    </script>
+    <script defer="defer" src="popup.js"></script>
 </head>
 <body>
     <div id="root"></div>
+    <script>
+        console.log('End of body reached');
+    </script>
 </body>
 </html>

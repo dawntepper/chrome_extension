@@ -1,0 +1,1 @@
+(()=>{"use strict";console.log("Background script loaded"),chrome.runtime.onInstalled.addListener((function(){console.log("Extension installed")}))})();

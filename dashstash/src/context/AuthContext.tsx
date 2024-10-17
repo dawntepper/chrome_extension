@@ -5,7 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
-import { User, Session, SupabaseClient } from "@supabase/supabase-js";
+import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../supabaseClient";
 
 interface AuthContextType {
@@ -52,13 +52,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     fetchSession();
 
-    const subscription = supabase.auth.onAuthStateChange(
-      async (_event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        setLoading(false);
-      }
-    ).data.subscription; // Access the subscription property
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      setLoading(false);
+    });
 
     return () => {
       subscription.unsubscribe();
@@ -66,9 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await (
-      supabase.auth as SupabaseClient["auth"]
-    ).signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });

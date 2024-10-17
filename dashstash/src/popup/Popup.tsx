@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button, Form, ListGroup, Tab, Tabs } from "react-bootstrap";
-import ArticleFormModal from "../../src/components/ArticleFormModal"; // Update 1
+import ArticleFormModal from "../../src/components/ArticleFormModal";
 import { Article } from "../popup/types/shared-types";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
@@ -18,41 +18,43 @@ const Popup: React.FC = () => {
   const [currentUrl, setCurrentUrl] = useState("");
   const [manualUrl, setManualUrl] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [articleToAdd, setArticleToAdd] = useState<Article | null>(null); // Update 1
+  const [articleToAdd, setArticleToAdd] = useState<Partial<Article> | null>(
+    null
+  );
   const { user } = useAuth();
 
+  const queryTabs = useCallback(async () => {
+    try {
+      const result = await chrome.tabs.query({ currentWindow: true });
+      const tabData: TabData[] = result.map((tab) => ({
+        id: tab.id,
+        title: tab.title || "",
+        url: tab.url || "",
+      }));
+      setTabs(tabData);
+    } catch (error) {
+      console.error("Error querying tabs:", error);
+    }
+  }, []);
+
+  const getCurrentTab = useCallback(async () => {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tab && tab.url) {
+        setCurrentUrl(tab.url);
+      }
+    } catch (error) {
+      console.error("Error getting current tab:", error);
+    }
+  }, []);
+
   useEffect(() => {
-    const queryTabs = async () => {
-      try {
-        const result = await chrome.tabs.query({ currentWindow: true });
-        const tabData: TabData[] = result.map((tab) => ({
-          id: tab.id,
-          title: tab.title || "",
-          url: tab.url || "",
-        }));
-        setTabs(tabData);
-      } catch (error) {
-        console.error("Error querying tabs:", error);
-      }
-    };
-
-    const getCurrentTab = async () => {
-      try {
-        const [tab] = await chrome.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        if (tab && tab.url) {
-          setCurrentUrl(tab.url);
-        }
-      } catch (error) {
-        console.error("Error getting current tab:", error);
-      }
-    };
-
     queryTabs();
     getCurrentTab();
-  }, []);
+  }, [queryTabs, getCurrentTab]);
 
   const handleTabSelection = (tabId: number | undefined) => {
     if (tabId === undefined) return;
@@ -81,51 +83,48 @@ const Popup: React.FC = () => {
   };
 
   const handleSaveCurrentUrl = () => {
-    // Update 2
     setArticleToAdd({
-      id: "",
       url: currentUrl,
       title: "",
       description: "",
       tags: [],
-      created_at: "",
-      user_id: "",
-      updated_at: "", // Added this line
     });
     setShowAddModal(true);
   };
 
   const handleSaveManualUrl = () => {
-    // Update 3
     if (!manualUrl) {
       alert("Please enter a URL");
       return;
     }
     setArticleToAdd({
-      id: "",
       url: manualUrl,
       title: "",
       description: "",
       tags: [],
-      created_at: "",
-      user_id: "",
-      updated_at: "", // Added this line
     });
     setShowAddModal(true);
   };
 
   const saveArticles = async (articles: Partial<Article>[]) => {
-    if (!user) return;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
 
-    const { error } = await supabase.from("articles").insert(
-      articles.map((article) => ({
-        ...article,
-        user_id: user.id,
-        created_at: new Date().toISOString(),
-      }))
-    );
+    const { data, error } = await supabase
+      .from("articles")
+      .insert(
+        articles.map((article) => ({
+          ...article,
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }))
+      )
+      .select();
 
     if (error) throw error;
+    return data;
   };
 
   const tabToArticle = (tab: TabData): Partial<Article> => ({
@@ -140,12 +139,29 @@ const Popup: React.FC = () => {
       alert("Article saved successfully!");
       setShowAddModal(false);
       setManualUrl("");
+      await queryTabs(); // Refresh the tab list
     } catch (error) {
       console.error("Error saving article:", error);
       alert("Failed to save article. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const convertToArticle = (
+    article: Partial<Article> | null
+  ): Article | null => {
+    if (!article) return null;
+    return {
+      id: article.id || "", // Ensure id is always a string
+      title: article.title || "",
+      description: article.description || "",
+      tags: article.tags || [],
+      url: article.url || "",
+      created_at: article.created_at || new Date().toISOString(),
+      updated_at: article.updated_at || new Date().toISOString(),
+      user_id: article.user_id || "",
+    };
   };
 
   return (

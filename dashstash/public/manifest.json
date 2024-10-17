@@ -1,22 +1,30 @@
 {
-    "manifest_version": 2,
-    "name": "DashStash Extension",
-    "version": "1.0",
-    "description": "Save articles to DashStash",
-    "permissions": [
-      "activeTab",
-      "storage",
-      "https://your-api-endpoint.com/"
-    ],
-    "browser_action": {
-      "default_popup": "index.html",
-      "default_icon": "icon.png"
-    },
-    "background": {
-      "scripts": ["background.js"],
-      "persistent": false
-    },
-    "icons": {
-      "48": "icon.png"
+  "manifest_version": 3,
+  "name": "DashStash",
+  "version": "1.0",
+  "description": "Save and organize web articles",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
     }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
   }
+}

@@ -1,22 +1,25 @@
 {
-  "name": "dashstash",
+  "name": "dashstash-chrome-extension",
   "version": "1.0.0",
   "description": "Chrome extension for DashStash",
   "main": "index.js",
   "scripts": {
-    "start": "webpack --watch --config webpack.config.js",
-    "build": "webpack --config webpack.config.js"
+    "start": "webpack --watch --config webpack.config.js --mode development",
+    "build": "webpack --config webpack.config.js --mode production",
+    "test": "jest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
-    "react": "^18.3.1",
+    "react": "^17.0.2",
     "react-bootstrap": "^2.0.0",
-    "react-dom": "^18.3.1"
+    "react-dom": "^17.0.2",
+    "tailwindcss": "^3.4.14"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.180",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
+    "@types/react": "^17.0.38",
+    "@types/react-dom": "^17.0.11",
+    "@types/tailwindcss": "^3.0.11",
     "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^6.5.1",
     "html-webpack-plugin": "^5.5.0",

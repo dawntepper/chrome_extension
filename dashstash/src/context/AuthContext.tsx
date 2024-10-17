@@ -1,17 +1,18 @@
 import React, {
   createContext,
-  useContext,
   useState,
   useEffect,
+  useContext,
   ReactNode,
 } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import { User, Session, Provider } from "@supabase/supabase-js";
 import { supabase } from "../supabaseClient";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithOAuth: (provider: Provider) => Promise<void>;
   signOut: () => Promise<void>;
   loading: boolean;
 }
@@ -73,6 +74,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (error) throw error;
   };
 
+  const signInWithOAuth = async (provider: Provider) => {
+    const { error } = await supabase.auth.signInWithOAuth({ provider });
+    if (error) throw error;
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -82,6 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     session,
     signIn,
+    signInWithOAuth,
     signOut,
     loading,
   };

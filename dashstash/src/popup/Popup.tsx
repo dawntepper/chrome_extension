@@ -1,63 +1,115 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Button, Form, ListGroup, Tab, Tabs } from "react-bootstrap";
-import ArticleFormModal from "../../src/components/ArticleFormModal";
-import { Article } from "../popup/types/shared-types";
+import React, { useState, useEffect } from "react";
+import {
+  Button,
+  Form,
+  Alert,
+  Spinner,
+  Card,
+  ListGroup,
+  Nav,
+} from "react-bootstrap";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
+import { Provider } from "@supabase/supabase-js";
 
-interface TabData {
-  id?: number;
-  title: string;
+interface Tab {
+  id: number;
   url: string;
+  title: string;
 }
 
 const Popup: React.FC = () => {
-  const [tabs, setTabs] = useState<TabData[]>([]);
+  const [currentTab, setCurrentTab] = useState<Tab | null>(null);
+  const [manualUrl, setManualUrl] = useState("");
+  const [allTabs, setAllTabs] = useState<Tab[]>([]);
   const [selectedTabs, setSelectedTabs] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState("");
-  const [manualUrl, setManualUrl] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [articleToAdd, setArticleToAdd] = useState<Partial<Article> | null>(
-    null
-  );
-  const { user } = useAuth();
-
-  const queryTabs = useCallback(async () => {
-    try {
-      const result = await chrome.tabs.query({ currentWindow: true });
-      const tabData: TabData[] = result.map((tab) => ({
-        id: tab.id,
-        title: tab.title || "",
-        url: tab.url || "",
-      }));
-      setTabs(tabData);
-    } catch (error) {
-      console.error("Error querying tabs:", error);
-    }
-  }, []);
-
-  const getCurrentTab = useCallback(async () => {
-    try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (tab && tab.url) {
-        setCurrentUrl(tab.url);
-      }
-    } catch (error) {
-      console.error("Error getting current tab:", error);
-    }
-  }, []);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [selectAll, setSelectAll] = useState(false);
+  const { user, signIn, signInWithOAuth, signOut } = useAuth();
 
   useEffect(() => {
-    queryTabs();
-    getCurrentTab();
-  }, [queryTabs, getCurrentTab]);
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        setCurrentTab({
+          id: tabs[0].id || 0,
+          url: tabs[0].url || "",
+          title: tabs[0].title || "",
+        });
+      }
+    });
 
-  const handleTabSelection = (tabId: number | undefined) => {
-    if (tabId === undefined) return;
+    chrome.tabs.query({}, (tabs) => {
+      const tabData = tabs.map((tab) => ({
+        id: tab.id || 0,
+        url: tab.url || "",
+        title: tab.title || "",
+      }));
+      setAllTabs(tabData);
+      setSelectedTabs(selectAll ? tabData.map((tab) => tab.id) : []);
+    });
+  }, [selectAll]);
+
+  const handleSaveUrl = async (url: string, title: string = "") => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (!user) throw new Error("You must be logged in to save URLs");
+
+      const { data, error } = await supabase
+        .from("articles")
+        .insert([{ url, title, user_id: user.id }]);
+
+      if (error) throw error;
+
+      setSuccess(`Successfully saved: ${url}`);
+      setManualUrl("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveSelectedTabs = async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (!user) throw new Error("You must be logged in to save tabs");
+
+      const tabsToSave = allTabs.filter((tab) => selectedTabs.includes(tab.id));
+      const { data, error } = await supabase.from("articles").insert(
+        tabsToSave.map((tab) => ({
+          url: tab.url,
+          title: tab.title,
+          user_id: user.id,
+        }))
+      );
+
+      if (error) throw error;
+
+      setSuccess(`Successfully saved ${tabsToSave.length} tabs`);
+      setSelectedTabs([]);
+      setSelectAll(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleTabSelection = (tabId: number) => {
     setSelectedTabs((prev) =>
       prev.includes(tabId)
         ? prev.filter((id) => id !== tabId)
@@ -65,174 +117,241 @@ const Popup: React.FC = () => {
     );
   };
 
-  const handleSaveTabs = async () => {
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectAll(e.target.checked);
+    setSelectedTabs(e.target.checked ? allTabs.map((tab) => tab.id) : []);
+  };
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
+    setError(null);
     try {
-      const tabsToSave = tabs.filter(
-        (tab) => tab.id !== undefined && selectedTabs.includes(tab.id)
+      await signIn(email, password);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "An error occurred during sign in"
       );
-      await saveArticles(tabsToSave.map(tabToArticle));
-      alert("Tabs saved successfully!");
-      setSelectedTabs([]);
-    } catch (error) {
-      console.error("Error saving tabs:", error);
-      alert("Failed to save tabs. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSaveCurrentUrl = () => {
-    setArticleToAdd({
-      url: currentUrl,
-      title: "",
-      description: "",
-      tags: [],
-    });
-    setShowAddModal(true);
-  };
-
-  const handleSaveManualUrl = () => {
-    if (!manualUrl) {
-      alert("Please enter a URL");
-      return;
-    }
-    setArticleToAdd({
-      url: manualUrl,
-      title: "",
-      description: "",
-      tags: [],
-    });
-    setShowAddModal(true);
-  };
-
-  const saveArticles = async (articles: Partial<Article>[]) => {
-    if (!user) {
-      throw new Error("User not authenticated");
-    }
-
-    const { data, error } = await supabase
-      .from("articles")
-      .insert(
-        articles.map((article) => ({
-          ...article,
-          user_id: user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }))
-      )
-      .select();
-
-    if (error) throw error;
-    return data;
-  };
-
-  const tabToArticle = (tab: TabData): Partial<Article> => ({
-    url: tab.url,
-    title: tab.title,
-  });
-
-  const handleAddArticle = async (article: Partial<Article>) => {
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      await saveArticles([article]);
-      alert("Article saved successfully!");
-      setShowAddModal(false);
-      setManualUrl("");
-      await queryTabs(); // Refresh the tab list
-    } catch (error) {
-      console.error("Error saving article:", error);
-      alert("Failed to save article. Please try again.");
+      await signInWithOAuth("google" as Provider);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred during Google sign in"
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const convertToArticle = (
-    article: Partial<Article> | null
-  ): Article | null => {
-    if (!article) return null;
-    return {
-      id: article.id || "", // Ensure id is always a string
-      title: article.title || "",
-      description: article.description || "",
-      tags: article.tags || [],
-      url: article.url || "",
-      created_at: article.created_at || new Date().toISOString(),
-      updated_at: article.updated_at || new Date().toISOString(),
-      user_id: article.user_id || "",
-    };
+  const handleSignOut = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await signOut();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "An error occurred during sign out"
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const openWebApp = () => {
+    chrome.tabs.create({ url: "https://your-web-app-url.com" });
+  };
+
+  if (!user) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <Card.Body className="p-4">
+          <h1 className="h4 mb-4 text-center">DashStash Login</h1>
+          {error && <Alert variant="danger">{error}</Alert>}
+          <Form onSubmit={handleEmailSignIn} className="mb-3">
+            <Form.Group className="mb-3">
+              <Form.Label>Email</Form.Label>
+              <Form.Control
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Password</Form.Label>
+              <Form.Control
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </Form.Group>
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-100"
+              disabled={isLoading}
+            >
+              {isLoading ? <Spinner animation="border" size="sm" /> : "Sign In"}
+            </Button>
+          </Form>
+          <Button
+            onClick={handleGoogleSignIn}
+            variant="outline-primary"
+            className="w-100 mb-3"
+          >
+            Sign In with Google
+          </Button>
+          <Button onClick={openWebApp} variant="link" className="w-100">
+            Open Web App to Create Account
+          </Button>
+        </Card.Body>
+      </Card>
+    );
+  }
 
   return (
-    <div style={{ width: "300px", padding: "10px" }}>
-      <h1 className="h4 mb-3">DashStash</h1>
-      <Tabs defaultActiveKey="current" className="mb-3">
-        <Tab eventKey="current" title="Current">
-          <p className="text-truncate mb-2">Current URL: {currentUrl}</p>
-          <Button
-            variant="primary"
-            className="w-100 mb-3"
-            onClick={handleSaveCurrentUrl}
-            disabled={isLoading || !currentUrl}
-          >
-            {isLoading ? "Saving..." : "Save Current URL"}
-          </Button>
-        </Tab>
-        <Tab eventKey="manual" title="Manual">
+    <Card className="border-0 shadow-sm">
+      <Card.Body className="p-4">
+        <h1 className="h4 mb-4 text-center">DashStash</h1>
+        <p className="text-center mb-4">Logged in as: {user.email}</p>
+        <Button
+          onClick={handleSignOut}
+          variant="outline-danger"
+          className="w-100 mb-4"
+        >
+          Sign Out
+        </Button>
+
+        {error && <Alert variant="danger">{error}</Alert>}
+        {success && <Alert variant="success">{success}</Alert>}
+
+        <Form className="mb-4">
           <Form.Group className="mb-3">
-            <Form.Control
-              type="url"
-              placeholder="Paste URL here"
-              value={manualUrl}
-              onChange={(e) => setManualUrl(e.target.value)}
-            />
+            <Form.Label>Current Tab</Form.Label>
+            <Form.Control type="text" value={currentTab?.url || ""} readOnly />
           </Form.Group>
           <Button
             variant="primary"
-            className="w-100 mb-3"
-            onClick={handleSaveManualUrl}
-            disabled={isLoading || !manualUrl}
+            onClick={() =>
+              currentTab && handleSaveUrl(currentTab.url, currentTab.title)
+            }
+            disabled={isLoading || !currentTab}
+            className="w-100"
           >
-            {isLoading ? "Saving..." : "Save Manual URL"}
+            {isLoading ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                />
+                <span className="ms-2">Saving...</span>
+              </>
+            ) : (
+              "Save Current Tab"
+            )}
           </Button>
-        </Tab>
-        <Tab eventKey="tabs" title="Tabs">
-          <Form>
-            <ListGroup>
-              {tabs.map((tab) => (
-                <ListGroup.Item key={tab.id}>
-                  <Form.Check
-                    type="checkbox"
-                    id={`tab-${tab.id}`}
-                    label={tab.title}
-                    checked={
-                      tab.id !== undefined && selectedTabs.includes(tab.id)
-                    }
-                    onChange={() => handleTabSelection(tab.id)}
-                  />
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-          </Form>
+        </Form>
+
+        <Form className="mb-4">
+          <Form.Group className="mb-3">
+            <Form.Label>Manual URL Entry</Form.Label>
+            <Form.Control
+              type="url"
+              value={manualUrl}
+              onChange={(e) => setManualUrl(e.target.value)}
+              placeholder="https://example.com"
+            />
+          </Form.Group>
           <Button
-            variant="primary"
-            className="mt-3 w-100"
-            onClick={handleSaveTabs}
-            disabled={selectedTabs.length === 0 || isLoading}
+            variant="outline-primary"
+            onClick={() => handleSaveUrl(manualUrl)}
+            disabled={isLoading || !manualUrl}
+            className="w-100"
           >
-            {isLoading ? "Saving..." : "Save Selected Tabs"}
+            {isLoading ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                />
+                <span className="ms-2">Saving...</span>
+              </>
+            ) : (
+              "Save Manual URL"
+            )}
           </Button>
-        </Tab>
-      </Tabs>
-      <ArticleFormModal
-        show={showAddModal}
-        onHide={() => setShowAddModal(false)}
-        onSubmit={handleAddArticle}
-        title="Add New Article"
-        article={articleToAdd}
-      />
-    </div>
+        </Form>
+
+        <Form className="mb-4">
+          <Form.Label>Select Tabs to Save</Form.Label>
+          <Form.Check
+            type="checkbox"
+            id="select-all"
+            label="Select All Tabs"
+            checked={selectAll}
+            onChange={handleSelectAll}
+            className="mb-2"
+          />
+          <ListGroup
+            className="mb-3"
+            style={{ maxHeight: "200px", overflowY: "auto" }}
+          >
+            {allTabs.map((tab) => (
+              <ListGroup.Item
+                key={tab.id}
+                className="d-flex align-items-center"
+              >
+                <Form.Check
+                  type="checkbox"
+                  id={`tab-${tab.id}`}
+                  checked={selectedTabs.includes(tab.id)}
+                  onChange={() => toggleTabSelection(tab.id)}
+                  label={tab.title}
+                />
+              </ListGroup.Item>
+            ))}
+          </ListGroup>
+          <Button
+            variant="success"
+            onClick={handleSaveSelectedTabs}
+            disabled={isLoading || selectedTabs.length === 0}
+            className="w-100"
+          >
+            {isLoading ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                />
+                <span className="ms-2">Saving...</span>
+              </>
+            ) : (
+              `Save Selected Tabs (${selectedTabs.length})`
+            )}
+          </Button>
+        </Form>
+      </Card.Body>
+    </Card>
   );
 };
 
